@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
+	<flow name="createFlow" doc:id="53a45d21-01a3-44d9-829d-6e7d26ed3dae" >
+		<scheduler doc:name="Scheduler" doc:id="fa586df5-7b21-4776-b495-2f1ff1f56950" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="3" timeUnit="SECONDS"/>
+			</scheduling-strategy>
+		</scheduler>
+		<salesforce:query doc:name="Account A" doc:id="b9036d02-bdf0-4018-8656-17df2fe5d472" config-ref="Salesforce_Source">
+			<salesforce:salesforce-query><![CDATA[SELECT Id, Name, Phone, Ex_Account_Key__c, Description, BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry  FROM Account
+]]></salesforce:salesforce-query>
+		</salesforce:query>
+		<ee:transform doc:name="Transform Message" doc:id="cdb37b65-a41c-42bf-8077-8e3d3221e1cc" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	Name: payload01.Name,
+	BillingStreet: payload01.BillingStreet,
+	BillingCity: payload01.BillingCity,
+	BillingState: payload01.BillingState,
+	BillingPostalCode: payload01.BillingPostalCode,
+	BillingCountry: payload01.BillingCountry,
+	Phone: payload01.Phone,
+	Description: payload01.Description,
+	Ex_Account_Key__c: payload01.Ex_Account_Key__c
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<batch:job jobName="syncWithSalesforce" doc:id="55a1ffee-4783-4a45-855b-c8578a06ddcd" >
+			<batch:process-records >
+				<batch:step name="isAccountInSalesforce" doc:id="994041b3-f8c2-435c-a44b-4ebabda9010a" >
+					<salesforce:query doc:name="Account B" doc:id="6064ba4b-8cb7-4b6d-b29a-74faaee0bedf" config-ref="Salesforce_Reciever" target="exists" targetValue="#[(sizeOf(payload as Array) &gt; 0)]">
+                    <salesforce:salesforce-query><![CDATA[SELECT Id, Name, Phone, Ex_Account_Key__c, Description, BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry FROM Account WHERE Ex_Account_Key__c = ':cex_account_key__c'
+                    
+                    ]]></salesforce:salesforce-query>
+						<salesforce:parameters><![CDATA[#[output application/java
+---
+{
+	"cex_account_key__c" : payload.Ex_Account_Key__c as String
+}]]]></salesforce:parameters>
+                </salesforce:query>
+					<logger level="INFO" doc:name="Logger" doc:id="de38f6b0-1f2e-4a8c-8ea2-6637393da1c9" />
+				</batch:step>
+				<batch:step name="writeToSalesforce" doc:id="95ac5a56-73d8-4c48-b1a1-cdab0830dfcf">
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="914fc4c2-405c-48cd-819b-611bc0d1a9fb" streaming="true">
+						<salesforce:upsert doc:name="Upsert" doc:id="7ec8601c-e682-4248-b131-d4a327f009a5" config-ref="Salesforce_Reciever" objectType="Account" externalIdFieldName="Ex_Account_Key__c"/>
+						<logger level="INFO" doc:name="Logger" doc:id="ad6d4374-e226-4039-a5c7-3b709ef0821c" />
+					</batch:aggregator>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<logger level="INFO" doc:name="Logger" doc:id="a4601b84-a71e-4493-8122-8aa38c991e4c" />
+			</batch:on-complete>
+		</batch:job>
+		<logger level="INFO" doc:name="payload" doc:id="92723437-8837-4c45-b0c2-3c61e30eb8e2" message="#[payload]" />
+	</flow>
+</mule>
