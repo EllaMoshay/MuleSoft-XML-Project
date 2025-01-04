@@ -1,0 +1,18 @@
+http:
+  port: "8081" ##Port the Mule Runtime is hosted on
+
+file:
+  accountsDir: "yourFolder" ## Route to Folder on Computer
+
+
+## input SalesForce information for sending side 
+sfdc:
+   username: "yourUser" ## Salesforce username 
+   password: "yourPass" ## Salesforce password 
+   token: "yourToken" ## Salesforce Security token 
+
+## input SalesFore Account information for recieving side
+sfdct:
+   username: "yourUser" ## Salesforce username 
+   password: "yourPass" ## Salesforce password 
+   token: "yourToken" ## Salesforce Security token 
